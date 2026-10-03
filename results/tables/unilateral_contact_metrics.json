@@ -1,0 +1,23 @@
+{
+  "scenario": {
+    "bump_height_mm": 70.0,
+    "bump_width_m": 0.7,
+    "speed_kmh": 55.0
+  },
+  "linear_model": {
+    "rms_body_accel_mps2": 0.10269177534968456,
+    "peak_body_accel_mps2": 0.23558817730820414,
+    "peak_susp_travel_mm": 88.35136348912731,
+    "min_total_tyre_load_n": -11980.587193165095,
+    "contact_loss_duration_s": 0.812,
+    "contact_loss_pct": 27.057647450849714
+  },
+  "unilateral_model": {
+    "rms_body_accel_mps2": 0.05795497047178329,
+    "peak_body_accel_mps2": 0.15714168687474941,
+    "peak_susp_travel_mm": 5577.122122498622,
+    "min_total_tyre_load_n": 0.0,
+    "contact_loss_duration_s": 2.312,
+    "contact_loss_pct": 77.04098633788738
+  }
+}

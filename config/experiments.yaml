@@ -1,0 +1,24 @@
+# Experiment and Evaluation Scenario Matrix
+dataset_generation:
+  num_scenarios_per_class: 15   # 15 scenarios each for smooth, bump, rough (45 total)
+  speeds_kmh: [30.0, 50.0, 70.0, 90.0]
+  duration_s: 6.0
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+
+pso_optimization:
+  swarm_size: 20
+  max_iterations: 25
+  w_start: 0.9
+  w_end: 0.4
+  c1: 1.6
+  c2: 1.6
+  seed: 42
+  # PSO training scenario IDs (distinct from test scenarios)
+  training_seeds: [101, 102, 103]
+
+held_out_benchmark:
+  speeds_kmh: [40.0, 60.0, 80.0]
+  test_seeds: [801, 802, 803, 804, 805]
+  duration_s: 6.0

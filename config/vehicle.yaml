@@ -1,0 +1,14 @@
+# Vehicle Dynamics Assumed Parameters (Quarter-Car Model for Passenger EV)
+# NOTE: These are academic simulation assumptions, not manufacturer specifications.
+sprung_mass_kg: 450.0          # 1/4 of vehicle chassis + battery pack mass
+unsprung_mass_kg: 45.0         # Wheel, hub motor / brake assembly mass
+suspension_stiffness_n_per_m: 28000.0   # Main suspension spring stiffness
+suspension_damping_ns_per_m: 1500.0    # Passive suspension damping coefficient
+tyre_stiffness_n_per_m: 190000.0       # Radial tyre stiffness
+
+# Geometry and Physical Constraints
+max_suspension_travel_m: 0.08  # Maximum allowable bump/rebound suspension travel (+/- 80 mm)
+gravity_m_per_s2: 9.81         # Gravitational acceleration
+
+# Baseline nominal static tyre load:
+# F_static = (ms + mu) * g = 495 * 9.81 = 4855.95 N

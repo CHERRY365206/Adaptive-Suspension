@@ -1,0 +1,23 @@
+# Master Simulation and Project Configuration
+seed: 42
+sampling_frequency_hz: 500.0
+time_step_s: 0.002
+default_duration_s: 6.0
+integration_method: "RK45"
+integration_rtol: 1.0e-6
+integration_atol: 1.0e-8
+
+# Feature Extraction and AI
+rolling_window_s: 0.5
+prediction_interval_s: 0.05
+min_samples_for_prediction: 50
+
+# Adaptive Control Safeguards
+dwell_time_s: 0.3
+confidence_threshold: 0.45
+bumpless_transfer_tau_s: 0.05
+fallback_controller: "balanced"
+
+# Paths
+artifacts_dir: "artifacts"
+results_dir: "results"

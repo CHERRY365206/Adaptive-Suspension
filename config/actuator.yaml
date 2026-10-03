@@ -1,0 +1,11 @@
+# Active Suspension Actuator Configuration
+max_force_n: 1800.0             # Peak linear actuator force capability (+/- 1800 N)
+min_force_n: -1800.0
+slew_rate_limit_n_per_s: 18000.0 # Maximum rate of force change (18,000 N/s)
+actuator_bandwidth_hz: 25.0     # Effective actuator mechanical bandwidth
+
+# Actuator Energy Model
+actuator_efficiency: 0.85       # Motoring electrical-to-mechanical efficiency (85%)
+regenerative_efficiency: 0.50   # Regeneration mechanical-to-electrical efficiency (50%)
+standby_power_w: 25.0           # Quiescent auxiliary electronic power consumption (25 W)
+allow_regeneration: true        # Enable regenerative braking of suspension energy
