@@ -146,3 +146,219 @@ def plot_feature_importance_interactive(feat_dict: Dict[str, float]) -> go.Figur
         height=600
     )
     return fig
+
+
+def plot_road_profile(t: np.ndarray, zr: np.ndarray, title: str = "Road Surface Elevation Profile") -> go.Figure:
+    """Create clean Plotly figure for road surface elevation vs time."""
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=t,
+        y=zr,
+        mode="lines",
+        name="Road Profile zr(t)",
+        line=dict(color="#334155", width=2)
+    ))
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=14, weight="bold")),
+        xaxis_title="Time [s]",
+        yaxis_title="Road Displacement [m]",
+        template="plotly_white",
+        height=280,
+        margin=dict(l=40, r=40, t=40, b=40)
+    )
+    return fig
+
+
+def plot_body_acceleration_comparison(
+    res_passive: SimulationResult,
+    res_adaptive: SimulationResult,
+    title: str = "Chassis Vertical Body Acceleration: Passive vs AI Adaptive"
+) -> go.Figure:
+    """Primary comparison plot highlighting vehicle body acceleration reduction."""
+    fig = go.Figure()
+    t = res_passive.t
+
+    # Passive response (baseline)
+    fig.add_trace(go.Scatter(
+        x=t,
+        y=res_passive.zs_ddot,
+        mode="lines",
+        name=f"Passive Suspension (RMS: {res_passive.rms_body_accel:.3f} m/s²)",
+        line=dict(color="#94a3b8", width=1.8, dash="solid")
+    ))
+
+    # AI Adaptive response (active control)
+    fig.add_trace(go.Scatter(
+        x=t,
+        y=res_adaptive.zs_ddot,
+        mode="lines",
+        name=f"AI Adaptive Suspension (RMS: {res_adaptive.rms_body_accel:.3f} m/s²)",
+        line=dict(color="#2563eb", width=2.2)
+    ))
+
+    fig.update_layout(
+        title=dict(text=f"⭐ {title}", font=dict(size=16, weight="bold", color="#1e3a8a")),
+        xaxis_title="Time [s]",
+        yaxis_title="Body Acceleration [m/s²]",
+        template="plotly_white",
+        height=380,
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=40, r=40, t=50, b=40)
+    )
+    return fig
+
+
+def plot_suspension_travel_comparison(
+    res_passive: SimulationResult,
+    res_adaptive: SimulationResult,
+    max_travel: float = 0.08
+) -> go.Figure:
+    """Compare suspension deflection zs - zu against rattle-space limits."""
+    fig = go.Figure()
+    t = res_passive.t
+
+    fig.add_trace(go.Scatter(
+        x=t,
+        y=res_passive.suspension_travel * 1000.0,
+        mode="lines",
+        name=f"Passive Travel (RMS: {res_passive.rms_suspension_travel*1000.0:.1f} mm)",
+        line=dict(color="#94a3b8", width=1.8)
+    ))
+    fig.add_trace(go.Scatter(
+        x=t,
+        y=res_adaptive.suspension_travel * 1000.0,
+        mode="lines",
+        name=f"AI Adaptive Travel (RMS: {res_adaptive.rms_suspension_travel*1000.0:.1f} mm)",
+        line=dict(color="#059669", width=2.0)
+    ))
+
+    # Boundary rattle-space lines
+    lim_mm = max_travel * 1000.0
+    fig.add_trace(go.Scatter(
+        x=[t[0], t[-1]],
+        y=[lim_mm, lim_mm],
+        mode="lines",
+        name=f"+Rattle Limit ({lim_mm:.0f} mm)",
+        line=dict(color="#dc2626", dash="dot", width=1.5)
+    ))
+    fig.add_trace(go.Scatter(
+        x=[t[0], t[-1]],
+        y=[-lim_mm, -lim_mm],
+        mode="lines",
+        name=f"-Rattle Limit (-{lim_mm:.0f} mm)",
+        line=dict(color="#dc2626", dash="dot", width=1.5),
+        showlegend=False
+    ))
+
+    fig.update_layout(
+        title=dict(text="Suspension Travel Deflection (zs - zu)", font=dict(size=14, weight="bold")),
+        xaxis_title="Time [s]",
+        yaxis_title="Suspension Travel [mm]",
+        template="plotly_white",
+        height=300,
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=40, r=40, t=50, b=40)
+    )
+    return fig
+
+
+def plot_tyre_load_comparison(
+    res_passive: SimulationResult,
+    res_adaptive: SimulationResult,
+    static_load: Optional[float] = None
+) -> go.Figure:
+    """Compare dynamic tyre load variation kt * (zu - zr) [N]."""
+    fig = go.Figure()
+    t = res_passive.t
+
+    fig.add_trace(go.Scatter(
+        x=t,
+        y=res_passive.dynamic_tyre_load,
+        mode="lines",
+        name=f"Passive Tyre Load (RMS: {res_passive.rms_dynamic_tyre_load:.0f} N)",
+        line=dict(color="#94a3b8", width=1.8)
+    ))
+    fig.add_trace(go.Scatter(
+        x=t,
+        y=res_adaptive.dynamic_tyre_load,
+        mode="lines",
+        name=f"AI Adaptive Tyre Load (RMS: {res_adaptive.rms_dynamic_tyre_load:.0f} N)",
+        line=dict(color="#d97706", width=2.0)
+    ))
+
+    if static_load is not None:
+        fig.add_trace(go.Scatter(
+            x=[t[0], t[-1]],
+            y=[static_load, static_load],
+            mode="lines",
+            name=f"Static Tyre Load ({static_load:.0f} N)",
+            line=dict(color="#dc2626", dash="dash", width=1.2)
+        ))
+
+    fig.update_layout(
+        title=dict(text="Dynamic Tyre Load Variation kt*(zu - zr)", font=dict(size=14, weight="bold")),
+        xaxis_title="Time [s]",
+        yaxis_title="Dynamic Tyre Load [N]",
+        template="plotly_white",
+        height=300,
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=40, r=40, t=50, b=40)
+    )
+    return fig
+
+
+def plot_actuator_force(
+    res_adaptive: SimulationResult,
+    max_force: float = 1800.0
+) -> go.Figure:
+    """Show requested vs applied force with dynamic actuator saturation limits."""
+    fig = go.Figure()
+    t = res_adaptive.t
+
+    fig.add_trace(go.Scatter(
+        x=t,
+        y=res_adaptive.u_requested,
+        mode="lines",
+        name="Requested Force",
+        line=dict(color="#9333ea", dash="dot", width=1.5)
+    ))
+    fig.add_trace(go.Scatter(
+        x=t,
+        y=res_adaptive.u_applied,
+        mode="lines",
+        name="Applied Force",
+        line=dict(color="#0284c7", width=2.0)
+    ))
+
+    # Dynamic saturation limits based on currently configured Fmax
+    fig.add_trace(go.Scatter(
+        x=[t[0], t[-1]],
+        y=[max_force, max_force],
+        mode="lines",
+        name=f"+Fmax (+{max_force:.0f} N)",
+        line=dict(color="#ef4444", dash="dash", width=1.5)
+    ))
+    fig.add_trace(go.Scatter(
+        x=[t[0], t[-1]],
+        y=[-max_force, -max_force],
+        mode="lines",
+        name=f"-Fmax (-{max_force:.0f} N)",
+        line=dict(color="#ef4444", dash="dash", width=1.5),
+        showlegend=False
+    ))
+
+    fig.update_layout(
+        title=dict(text="Active Actuator Force (Requested vs Applied with Saturation)", font=dict(size=13, weight="bold")),
+        xaxis_title="Time [s]",
+        yaxis_title="Actuator Force [N]",
+        template="plotly_white",
+        height=280,
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=40, r=40, t=50, b=40)
+    )
+    return fig
+

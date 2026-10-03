@@ -8,7 +8,12 @@ from dashboard.visualizations import (
     plot_simulation_time_series,
     plot_comparison_bar_chart,
     plot_pso_convergence_interactive,
-    plot_feature_importance_interactive
+    plot_feature_importance_interactive,
+    plot_road_profile,
+    plot_body_acceleration_comparison,
+    plot_suspension_travel_comparison,
+    plot_tyre_load_comparison,
+    plot_actuator_force
 )
 from models.quarter_car import SimulationResult
 
@@ -58,3 +63,47 @@ def test_dashboard_visualizations_create_figures():
     feat_dict = {"body_accel_rms": 0.35, "wheel_accel_rms": 0.25}
     fig_imp = plot_feature_importance_interactive(feat_dict)
     assert fig_imp is not None
+
+
+def test_comparison_visualizations():
+    """Verify newly added focused comparison plots execute cleanly."""
+    t = np.linspace(0, 1.0, 100)
+    res_p = SimulationResult(
+        t=t, zs=np.sin(t), zs_dot=np.cos(t), zs_ddot=-np.sin(t),
+        zu=0.5*np.sin(t), zu_dot=0.5*np.cos(t), zu_ddot=-0.5*np.sin(t),
+        suspension_travel=0.5*np.sin(t), tyre_deflection=0.1*np.sin(t),
+        zr=0.1*np.sin(t), u_requested=np.zeros_like(t), u_applied=np.zeros_like(t),
+        dynamic_tyre_load=19000.0*np.sin(t), total_tyre_load=np.full_like(t, 4000.0),
+        loss_of_contact=np.zeros(len(t), dtype=bool), travel_exceeded=np.zeros(len(t), dtype=bool),
+        power_mechanical=np.zeros_like(t), power_electrical=np.zeros_like(t)
+    )
+    res_a = SimulationResult(
+        t=t, zs=0.6*np.sin(t), zs_dot=0.6*np.cos(t), zs_ddot=-0.6*np.sin(t),
+        zu=0.4*np.sin(t), zu_dot=0.4*np.cos(t), zu_ddot=-0.4*np.sin(t),
+        suspension_travel=0.2*np.sin(t), tyre_deflection=0.08*np.sin(t),
+        zr=0.1*np.sin(t), u_requested=500.0*np.sin(t), u_applied=480.0*np.sin(t),
+        dynamic_tyre_load=15000.0*np.sin(t), total_tyre_load=np.full_like(t, 4000.0),
+        loss_of_contact=np.zeros(len(t), dtype=bool), travel_exceeded=np.zeros(len(t), dtype=bool),
+        power_mechanical=np.zeros_like(t), power_electrical=np.zeros_like(t)
+    )
+
+    f_road = plot_road_profile(t, res_p.zr)
+    assert f_road is not None
+    assert len(f_road.data) == 1
+
+    f_acc = plot_body_acceleration_comparison(res_p, res_a)
+    assert f_acc is not None
+    assert len(f_acc.data) == 2
+
+    f_trv = plot_suspension_travel_comparison(res_p, res_a, max_travel=0.08)
+    assert f_trv is not None
+    assert len(f_trv.data) >= 3
+
+    f_tyre = plot_tyre_load_comparison(res_p, res_a, static_load=4855.0)
+    assert f_tyre is not None
+    assert len(f_tyre.data) >= 2
+
+    f_act = plot_actuator_force(res_a, max_force=1800.0)
+    assert f_act is not None
+    assert len(f_act.data) >= 3
+
