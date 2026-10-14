@@ -362,3 +362,57 @@ def plot_actuator_force(
     )
     return fig
 
+
+def plot_three_way_comparison(
+    res_passive: SimulationResult,
+    res_lqr: SimulationResult,
+    res_mpc: SimulationResult,
+    title: str = "Benchmark: Passive vs Fixed LQR vs Constrained MPC"
+) -> go.Figure:
+    """Create interactive 4-panel comparison for the 3 core controllers on identical road data."""
+    fig = make_subplots(
+        rows=4, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.05,
+        subplot_titles=[
+            "1. Body Vertical Displacement (zs) [mm]",
+            "2. Body Acceleration (zs_ddot) [m/s²] (ISO 2631 Comfort)",
+            "3. Dynamic Tyre Load Variation [N] (Road Holding)",
+            "4. Applied Actuator Force [N] (Physical Constraints)"
+        ]
+    )
+
+    t = res_passive.t
+
+    # 1. Displacement
+    fig.add_trace(go.Scatter(x=t, y=res_passive.zr * 1000.0, name="Road Profile (zr)", line=dict(color="#64748b", dash="dash")), row=1, col=1)
+    fig.add_trace(go.Scatter(x=t, y=res_passive.zs * 1000.0, name="Passive (zs)", line=dict(color="#ef4444", width=1.5)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=t, y=res_lqr.zs * 1000.0, name="Fixed LQR (zs)", line=dict(color="#10b981", width=1.5)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=t, y=res_mpc.zs * 1000.0, name="Constrained MPC (zs)", line=dict(color="#2563eb", width=2.0)), row=1, col=1)
+
+    # 2. Acceleration
+    fig.add_trace(go.Scatter(x=t, y=res_passive.zs_ddot, name="Passive Accel", line=dict(color="#ef4444", width=1.2), showlegend=False), row=2, col=1)
+    fig.add_trace(go.Scatter(x=t, y=res_lqr.zs_ddot, name="LQR Accel", line=dict(color="#10b981", width=1.2), showlegend=False), row=2, col=1)
+    fig.add_trace(go.Scatter(x=t, y=res_mpc.zs_ddot, name="MPC Accel", line=dict(color="#2563eb", width=1.8), showlegend=False), row=2, col=1)
+
+    # 3. Dynamic tyre load
+    fig.add_trace(go.Scatter(x=t, y=res_passive.dynamic_tyre_load, name="Passive F_td", line=dict(color="#ef4444", width=1.2), showlegend=False), row=3, col=1)
+    fig.add_trace(go.Scatter(x=t, y=res_lqr.dynamic_tyre_load, name="LQR F_td", line=dict(color="#10b981", width=1.2), showlegend=False), row=3, col=1)
+    fig.add_trace(go.Scatter(x=t, y=res_mpc.dynamic_tyre_load, name="MPC F_td", line=dict(color="#2563eb", width=1.8), showlegend=False), row=3, col=1)
+
+    # 4. Actuator force
+    fig.add_trace(go.Scatter(x=t, y=res_lqr.u_applied, name="LQR Force", line=dict(color="#10b981", width=1.2), showlegend=False), row=4, col=1)
+    fig.add_trace(go.Scatter(x=t, y=res_mpc.u_applied, name="MPC Force", line=dict(color="#2563eb", width=1.8), showlegend=False), row=4, col=1)
+
+    fig.update_layout(
+        height=750,
+        title=dict(text=title, font=dict(size=14, weight="bold")),
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        template="plotly_white",
+        margin=dict(l=40, r=40, t=70, b=40)
+    )
+    fig.update_xaxes(title_text="Time [s]", row=4, col=1)
+    return fig
+
+

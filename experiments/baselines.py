@@ -19,6 +19,7 @@ from models.actuator import ActuatorModel
 from controllers.lqr import LQRConfig, LQRController
 from controllers.controller_registry import build_nominal_controllers
 from controllers.adaptive_selector import AdaptiveControllerSelector, OracleAdaptiveSelector
+from controllers.mpc import MPCConfig, MPCController
 from ai.predict_road import RoadPredictor
 from optimization.parameterization import decode_parameters
 
@@ -32,14 +33,18 @@ SYSTEM_NAMES = [
     "oracle_adaptive"
 ]
 
+ALL_SYSTEM_NAMES = SYSTEM_NAMES + ["mpc"]
+
 SYSTEM_DISPLAY_NAMES = {
     "passive": "Passive Suspension",
     "fixed_nominal_lqr": "Fixed Nominal LQR",
     "fixed_pso_lqr": "Fixed PSO-Optimized LQR",
     "adaptive_no_pso": "Adaptive LQR (Heuristic / No PSO)",
     "proposed_ai_pso": "Proposed AI + PSO Adaptive LQR",
-    "oracle_adaptive": "Oracle Adaptive LQR (Reference)"
+    "oracle_adaptive": "Oracle Adaptive LQR (Reference)",
+    "mpc": "Constrained Model Predictive Control (MPC)"
 }
+
 
 
 class SuspensionBenchmarkSuite:
@@ -93,6 +98,9 @@ class SuspensionBenchmarkSuite:
             default_controller="balanced"
         )
 
+        # 5. Build MPC controller
+        self.mpc_controller = MPCController(vehicle_params=self.params)
+
     def _load_or_create_pso_controllers(self, path: str | Path) -> Dict[str, LQRController]:
         """Load PSO-optimized controllers from JSON, or fallback to sensible tuned variants if not yet trained."""
         path = Path(path)
@@ -144,8 +152,8 @@ class SuspensionBenchmarkSuite:
             SimulationResult containing all outputs and state trajectories.
         """
         system_type = system_type.lower()
-        if system_type not in SYSTEM_NAMES:
-            raise ValueError(f"Unknown system_type '{system_type}'. Must be one of {SYSTEM_NAMES}")
+        if system_type not in ALL_SYSTEM_NAMES:
+            raise ValueError(f"Unknown system_type '{system_type}'. Must be one of {ALL_SYSTEM_NAMES}")
 
         # Reset states
         self.predictor.reset()
@@ -186,6 +194,22 @@ class SuspensionBenchmarkSuite:
                 u_req = ctrl.compute_force(x)
                 u_r, u_a, is_sat = self.actuator.apply_limits(u_req, dt)
                 return u_r, u_a, {"active_controller": "pso_balanced"}
+
+            return self.model.simulate(
+                road_func=road_func,
+                controller_func=ctrl_fn,
+                duration=duration_s,
+                dt=dt,
+                actuator=self.actuator
+            )
+
+        elif system_type == "mpc":
+            self.mpc_controller.reset()
+            def ctrl_fn(t, x, zr):
+                u_req, info = self.mpc_controller.compute_force(x, current_road_elev=zr)
+                u_r, u_a, is_sat = self.actuator.apply_limits(u_req, dt)
+                info["active_controller"] = "mpc"
+                return u_r, u_a, info
 
             return self.model.simulate(
                 road_func=road_func,
@@ -246,3 +270,4 @@ class SuspensionBenchmarkSuite:
                 dt=dt,
                 actuator=self.actuator
             )
+

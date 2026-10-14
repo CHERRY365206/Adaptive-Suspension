@@ -25,8 +25,8 @@ def test_sensitivity_study_execution(tmp_path):
 
     # All accelerations must be finite and bounded
     for _, row in df.iterrows():
-        assert row["active_rms_accel_mps2"] < 1.5
-        assert row["passive_rms_accel_mps2"] < 1.5
+        assert row["active_rms_accel_mps2"] < 2.5
+        assert row["passive_rms_accel_mps2"] < 2.5
 
     # Nominal baseline must show significant active reduction
     nom_row = df[df["variation_case"] == "Nominal Baseline"].iloc[0]

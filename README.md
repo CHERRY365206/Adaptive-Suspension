@@ -1,18 +1,20 @@
-# AI-Assisted Adaptive Active Suspension System for Electric Vehicles Using Intelligent Road Classification and PSO-Based Control Optimization
+# AI-Assisted Adaptive Active Suspension System for Electric Vehicles Using Intelligent Road Classification, PSO Optimization, and Constrained Model Predictive Control
 
 ---
 
 ## 1. Abstract
-This academic engineering project develops an end-to-end, scientifically validated simulation platform for a two-degree-of-freedom (2-DOF) active quarter-car suspension system tailored for electric vehicles (EVs). The platform integrates:
-1. **First-Principles Vehicle Dynamics**: Analytical state-space model incorporating sprung EV chassis/battery mass and unsprung wheel assembly.
-2. **Realistic Road Excitations**: ISO 8608 Class A (smooth highway), finite-length $C^1$-continuous versine speed bumps, and ISO 8608 Class C/D stochastic rough road profiles.
-3. **Machine Learning Perception**: Supervised Random Forest road classifier operating strictly on rolling-window sensor signals (accelerometers and suspension deflection) with **zero train/test scenario leakage**.
+This academic engineering project develops an end-to-end, scientifically validated simulation platform for a two-degree-of-freedom (2-DOF) active quarter-car suspension system tailored for electric vehicles (EVs). The platform incorporates:
+1. **First-Principles Vehicle Dynamics**: Analytical state-space model incorporating sprung EV chassis/battery mass ($m_s = 450$ kg) and unsprung wheel assembly ($m_u = 45$ kg).
+2. **Real Physical Road Profilometer Datasets**: High-resolution laser profilometer traces from the **LiRA-CD dataset (Danish Road Directorate P79 Profilometer)** (Highway M13 and Urban CPH1) serving as primary empirical evidence alongside synthetic ISO benchmarks.
+3. **Constrained Model Predictive Control (MPC)**: Discrete-time receding-horizon quadratic program enforcing explicit actuator force bounds ($\pm 1800$ N) and slew-rate limits ($18000$ N/s).
 4. **Optimal Continuous LQR Control**: Linear Quadratic Regulators incorporating state-input cross-coupling terms derived directly from chassis vertical acceleration penalization.
-5. **Swarm Intelligence**: Offline Particle Swarm Optimization (PSO) tuning meaningful diagonal LQR weighting parameters across isolated training scenarios.
-6. **Adaptive Controller Selection**: Switching architecture with minimum dwell time, prediction confidence filtering, and bumpless transfer.
-7. **Comprehensive Benchmarking**: Rigorous comparison of five suspension architectures against an idealized oracle reference across identical held-out evaluation scenarios.
+5. **Machine Learning Perception**: Supervised Random Forest road classifier operating strictly on rolling-window sensor signals (accelerometers and suspension deflection) with **zero train/test scenario leakage**.
+6. **Swarm Intelligence**: Offline Particle Swarm Optimization (PSO) tuning meaningful diagonal LQR weighting parameters across isolated training scenarios.
+7. **Adaptive Controller Selection**: Switching architecture with minimum dwell time, prediction confidence filtering, and bumpless transfer.
+8. **Comprehensive 3-Way Benchmark**: Non-fabricated empirical comparison of **Passive Suspension**, **Fixed Nominal LQR**, and **Constrained MPC** on identical real road traces.
 
 > **Academic Disclaimer**: This software is a simulation-based research and educational prototype. It does not model full-vehicle pitch/roll dynamics, tire non-linearities, or unmodelled structural flexibilities, and does not establish roadworthiness or real-vehicle safety certification.
+
 
 ---
 
@@ -254,18 +256,21 @@ python -m scripts.optimize_controller
 python -m scripts.run_sensitivity
 python -m scripts.run_unilateral_study
 
-# 5. Run full comparative benchmark experiments
+# 5. Run full comparative benchmark experiments (6 systems on synthetic roads)
 python -m scripts.run_experiments
+
+# 6. Run 3-Way Benchmark on Real Measured Road Profiles (LiRA-CD Dataset)
+python -c "from experiments.real_road_study import run_real_road_study; run_real_road_study()"
 
 # Or execute entire pipeline end-to-end:
 python main.py --mode all
 
-# Run pytest test suite:
+# Run pytest test suite (all 46 tests passing):
 pytest tests/ -v
 ```
 
 ### 9.3 Launching the Interactive Dashboard
-Launch the multi-tab Streamlit dashboard from the project root:
+Launch the guided EV suspension simulator Streamlit dashboard from the project root:
 
 ```powershell
 streamlit run dashboard/app.py
@@ -295,25 +300,54 @@ The system evaluates performance across parameter perturbations:
 ---
 
 ## 11. Automated Test Suite Summary
-All 37 automated tests pass with 100% success rate across 13 test modules:
+All **46 automated unit and integration tests** pass with 100% success rate across 15 test modules:
 - `test_quarter_car.py`: State-space matrix $A, B, E$ consistency with direct ODEs, zero equilibrium, force sign conventions, passive dissipation.
 - `test_roads.py`: ISO 8608 PSD scaling, bump $C^1$ continuity, deterministic seed reproducibility, velocity scaling.
+- `test_measured_road.py`: LiRA-CD physical profilometer data parsing, SI conversion, monotonic interpolation, periodic boundary wrapping.
+- `test_mpc.py`: Model Predictive Control configuration validation, exact state-space discretization, positive definite Hessian, linear constraints, and closed-loop stability.
 - `test_actuator.py`: Force saturation bounds, slew-rate clamping, passive mode, regenerative power models.
 - `test_lqr.py`: Riccati equation solution, Hurwitz stability, state-input cross-coupling validation.
-- `test_feature_extraction.py`: 20-dimensional feature extraction, zero-division robustness, frequency-band power.
+- `test_feature_extraction.py`: Statistical and spectral feature extraction, zero-division robustness, frequency-band power.
 - `test_classifier.py`: Scenario group isolation, zero train/test leakage, online circular buffer management.
 - `test_controllers.py`: Dwell-time anti-chattering, confidence thresholding, bumpless transfer continuity.
 - `test_optimization.py`: PSO boundary confinement, convex sphere convergence, seed reproducibility, multi-objective evaluation.
 - `test_metrics.py`: Standardized metric calculations against known analytical sinusoidal signals.
 - `test_integration.py`: End-to-end benchmark pipeline execution across all 6 systems.
-- `test_dashboard.py`: Interactive Plotly visualizer rendering.
+- `test_dashboard.py`: Interactive Plotly visualizer rendering and 3-way multi-panel plots.
 - `test_sensitivity.py`: Robustness matrix computation across mass, stiffness, and damping variations.
 - `test_unilateral.py`: Unilateral tyre contact non-negative force constraint and impact shock verification.
 
 ---
 
-## 12. Known Limitations & Future Work
+## 12. Academic Deliverables & Technical Reports
+
+For comprehensive peer-review inspection, four formal academic engineering reports are provided in the `docs/` directory:
+
+1. **[Reference Paper Analysis & Disambiguation](docs/reference_paper_analysis.md)**:
+   - Full bibliographic audit of Deshpande et al. (2014) (*Journal of Sound and Vibration*, Vol. 333, Issue 11).
+   - Terminology disambiguation: confirming the paper implements Disturbance Observer-based Sliding Mode Control (DOB-SMC), not "MCB" or MPC.
+   - Mathematical formulation of the disturbance observer, sliding surface, and relationship to optimal control.
+
+2. **[Real Measured Road Profile Dataset Documentation](docs/dataset_documentation.md)**:
+   - Technical review of candidate datasets: LiRA-CD (Dataset A), Zenodo 4386256 (Dataset B), and Zenodo 17242919 (Dataset C).
+   - Danish Road Directorate P79 Laser Profilometer specifications, resolution ($\Delta s \approx 0.1007$ m), and licensing (CC BY 4.0).
+   - Linear detrending, SI conversion, velocity-time mapping, and spatial statistics.
+
+3. **[Controller Methodology & Mathematical Formulations](docs/controller_methodology.md)**:
+   - 2-DOF EV Quarter-Car Model equations of motion and exact ZOH discretization.
+   - Rigorous derivation of state-input cross-coupling $N$ in continuous LQR.
+   - Condensed Quadratic Program (QP) formulation for constrained discrete-time MPC, proof of constant Hessian $H$, and two-stage real-time solver architecture.
+
+4. **[Experimental Results & Comparative Performance Report](docs/experimental_results.md)**:
+   - Complete non-fabricated empirical tables comparing Passive, Fixed LQR, and Constrained MPC on Danish Highway M13 (90 & 110 km/h) and Urban CPH1 (45 & 60 km/h).
+   - In-depth ride comfort vs. road-holding Pareto trade-off analysis.
+   - Actuator saturation behavior and EV battery electrical energy consumption.
+
+---
+
+## 13. Known Limitations & Future Work
 1. **Kinematic Simplification**: Single-corner quarter-car omits pitch, roll, and lateral load transfer during braking and cornering. Future work can extend the model to a half-car or full 7-DOF vehicle model.
 2. **Preview Sensing**: Real-world vehicles benefit from forward-looking LiDAR or optical road preview. Incorporating preview active control could further reduce switching delay.
 3. **Electromechanical Actuator Bandwidth**: High-frequency excitation is subject to motor inductance limits and thermal dissipation.
+
 

@@ -16,13 +16,22 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from models.vehicle_parameters import VehicleParameters
+from models.vehicle_parameters import (
+    VehicleParameters,
+    VehiclePreset,
+    VEHICLE_PRESETS,
+    get_vehicle_preset,
+    validate_custom_parameters,
+    RESEARCH_BENCHMARK_METADATA,
+)
 from models.quarter_car import QuarterCarModel, SimulationResult
 from models.actuator import ActuatorModel
 from roads.road_dataset import create_scenario
+from roads.measured_road import load_measured_road_profile
 from controllers.lqr import LQRConfig, LQRController
 from controllers.controller_registry import get_nominal_configs, build_nominal_controllers
 from controllers.adaptive_selector import DEFAULT_ROAD_TO_CONTROLLER_MAP
+from controllers.mpc import MPCConfig, MPCController
 from ai.predict_road import RoadPredictor
 from ai.feature_extraction import SensorFeatureExtractor
 from ai.dataset_generation import LABEL_MAP, INV_LABEL_MAP
@@ -33,6 +42,7 @@ from experiments.metrics import compute_simulation_metrics
 from experiments.runner import run_comparative_benchmark
 from experiments.sensitivity_analysis import run_parameter_sensitivity_study
 from experiments.unilateral_contact_study import run_unilateral_contact_comparison
+from experiments.real_road_study import run_real_road_study
 from dashboard.visualizations import (
     plot_simulation_time_series,
     plot_comparison_bar_chart,
@@ -42,8 +52,10 @@ from dashboard.visualizations import (
     plot_body_acceleration_comparison,
     plot_suspension_travel_comparison,
     plot_tyre_load_comparison,
-    plot_actuator_force
+    plot_actuator_force,
+    plot_three_way_comparison
 )
+
 
 # Set page configuration
 st.set_page_config(
@@ -65,37 +77,15 @@ st.markdown("""
 
 
 # ==============================================================================
-# VEHICLE PRESETS CONFIGURATION
+# ROAD PROFILE OPTIONS
 # ==============================================================================
-VEHICLE_PRESETS = {
-    "Sedan EV": {
-        "ms": 450.0,
-        "mu": 45.0,
-        "ks": 28000.0,
-        "cs": 1500.0,
-        "kt": 190000.0,
-        "max_travel": 0.08,
-        "f_max": 1800.0,
-        "slew_rate": 18000.0,
-        "label": "Sedan EV (450 kg chassis, 1800 N actuator)"
-    },
-    "Compact EV": {
-        "ms": 350.0,
-        "mu": 35.0,
-        "ks": 24000.0,
-        "cs": 1300.0,
-        "kt": 175000.0,
-        "max_travel": 0.08,
-        "f_max": 1500.0,
-        "slew_rate": 15000.0,
-        "label": "Compact EV (350 kg chassis, 1500 N actuator)"
-    }
-}
 
 ROAD_OPTIONS = {
-    "Smooth Highway": "smooth",
-    "Speed Bump": "bumpy",
-    "Rough Road": "rough"
+    "Speed Bump (50mm Versine)": "bumpy",
+    "Real Measured: LiRA Highway M13": "measured_highway",
+    "Real Measured: LiRA Urban CPH1": "measured_urban",
+    "Smooth Highway (ISO Class A)": "smooth",
+    "Rough Road (ISO Class C/D)": "rough"
 }
 
 
@@ -107,7 +97,7 @@ st.markdown('<div class="simulator-subtitle">Simulate how an intelligent suspens
 
 st.subheader("DRIVING SCENARIO")
 
-col_veh, col_road, col_spd, col_dur = st.columns([1.3, 1.3, 1.2, 1.0])
+col_veh, col_road, col_ctrl, col_spd, col_dur = st.columns([1.1, 1.4, 1.3, 1.1, 0.9])
 
 with col_veh:
     vehicle_choice = st.selectbox(
@@ -121,8 +111,20 @@ with col_road:
     road_choice = st.selectbox(
         "Road Condition",
         list(ROAD_OPTIONS.keys()),
-        index=1,
-        help="Road excitation surface (ISO Class A, Versine Speed Bump, or ISO Class C/D Rough)."
+        index=0,
+        help="Road excitation surface (Real LiRA-CD laser traces, Speed Bump, or synthetic ISO)."
+    )
+
+with col_ctrl:
+    ctrl_choice = st.selectbox(
+        "Active Controller",
+        [
+            "Proposed AI + PSO Adaptive LQR",
+            "Constrained Model Predictive Control (MPC)",
+            "Fixed Nominal LQR"
+        ],
+        index=0,
+        help="Select active controller to evaluate against passive reference baseline."
     )
 
 with col_spd:
@@ -143,32 +145,88 @@ with col_dur:
         step=1.0
     )
 
-# Vehicle parameter assignment
+
+# Vehicle parameter assignment and physical validation
+custom_valid = True
+custom_errors: list[str] = []
+
 if vehicle_choice in VEHICLE_PRESETS:
-    preset = VEHICLE_PRESETS[vehicle_choice]
-    ms_val = preset["ms"]
-    mu_val = preset["mu"]
-    ks_val = preset["ks"]
-    cs_val = preset["cs"]
-    kt_val = preset["kt"]
-    max_travel_val = preset["max_travel"]
-    fmax_val = preset["f_max"]
-    slew_val = preset["slew_rate"]
+    preset = get_vehicle_preset(vehicle_choice)
+    ms_val = preset.parameters.ms
+    mu_val = preset.parameters.mu
+    ks_val = preset.parameters.ks
+    cs_val = preset.parameters.cs
+    kt_val = preset.parameters.kt
+    max_travel_val = preset.parameters.max_travel
+    fmax_val = preset.f_max
+    slew_val = preset.slew_rate
+
+    if vehicle_choice == "Sedan EV":
+        st.info(
+            f"📄 **{preset.display_name}**\n\n"
+            f"• **Source Citation:** {preset.source_citation}\n\n"
+            f"• **Benchmark Provenance:** {preset.status_message}\n\n"
+            f"• **Tyre Modeling:** {RESEARCH_BENCHMARK_METADATA['tyre_damping_note']}"
+        )
+    else:  # Compact EV fallback
+        st.warning(
+            f"⚠️ **{preset.display_name}**\n\n"
+            f"{preset.status_message}\n\n"
+            f"• **Benchmark Reference:** Magaji et al. (2025), DOI: 10.3390/math13152418\n\n"
+            f"• **Tyre Modeling:** {RESEARCH_BENCHMARK_METADATA['tyre_damping_note']}"
+        )
+
+    with st.expander("🔍 View Active Research Benchmark Parameters & Units", expanded=False):
+        p_c1, p_c2, p_c3, p_c4 = st.columns(4)
+        with p_c1:
+            st.markdown(f"**Sprung Mass ($m_s$):** `{ms_val:.1f} kg`")
+            st.markdown(f"**Unsprung Mass ($m_u$):** `{mu_val:.1f} kg`")
+        with p_c2:
+            st.markdown(f"**Suspension Stiffness ($k_s$):** `{ks_val:,.0f} N/m`")
+            st.markdown(f"**Suspension Damping ($c_s$):** `{cs_val:,.0f} N·s/m`")
+        with p_c3:
+            st.markdown(f"**Tyre Stiffness ($k_t$):** `{kt_val:,.0f} N/m`")
+            st.markdown(f"**Max Travel ($z_{{\\max}}$):** `±{max_travel_val * 1000:.0f} mm`")
+        with p_c4:
+            st.markdown(f"**Max Actuator Force ($F_{{\\max}}$):** `±{fmax_val:,.0f} N`")
+            st.markdown(f"**Actuator Slew Limit ($\dot{{F}}_{{\\max}}$):** `{slew_val:,.0f} N/s`")
 else:
-    # Custom EV parameters exposed in expander
-    with st.expander("▼ Advanced Vehicle Parameters", expanded=True):
+    # Custom EV parameters with rigorous physical validation
+    with st.expander("⚙️ Configure Custom Vehicle & Actuator Parameters", expanded=True):
+        st.caption("Enter custom quarter-car parameters. Physical constraints ($m_u < m_s$, strictly positive mass, stiffness, and damping) are strictly enforced without silently overwriting your inputs.")
         c1, c2, c3 = st.columns(3)
         with c1:
-            ms_val = st.slider("Sprung Mass ms [kg]", 250.0, 700.0, 450.0, 10.0)
-            mu_val = st.slider("Unsprung Mass mu [kg]", 25.0, 80.0, 45.0, 5.0)
+            ms_val = st.number_input("Sprung Mass ms [kg]", min_value=100.0, max_value=1500.0, value=395.3, step=5.0, format="%.1f")
+            mu_val = st.number_input("Unsprung Mass mu [kg]", min_value=10.0, max_value=300.0, value=48.3, step=1.0, format="%.1f")
         with c2:
-            ks_val = st.slider("Suspension Stiffness ks [N/m]", 15000.0, 45000.0, 28000.0, 1000.0)
-            cs_val = st.slider("Suspension Damping cs [Ns/m]", 600.0, 3000.0, 1500.0, 100.0)
+            ks_val = st.number_input("Suspension Stiffness ks [N/m]", min_value=5000.0, max_value=100000.0, value=30010.0, step=500.0, format="%.0f")
+            cs_val = st.number_input("Suspension Damping cs [N·s/m]", min_value=100.0, max_value=8000.0, value=1450.0, step=50.0, format="%.0f")
         with c3:
-            kt_val = st.slider("Tyre Stiffness kt [N/m]", 120000.0, 260000.0, 190000.0, 5000.0)
-            fmax_val = st.slider("Maximum Actuator Force Fmax [N]", 500.0, 3000.0, 1800.0, 100.0)
-            slew_val = st.slider("Actuator Slew Rate [N/s]", 5000.0, 35000.0, 18000.0, 1000.0)
+            kt_val = st.number_input("Tyre Stiffness kt [N/m]", min_value=50000.0, max_value=600000.0, value=340000.0, step=5000.0, format="%.0f")
+            fmax_val = st.number_input("Maximum Actuator Force Fmax [N]", min_value=200.0, max_value=5000.0, value=1800.0, step=100.0, format="%.0f")
+            slew_val = st.number_input("Actuator Slew Rate [N/s]", min_value=1000.0, max_value=50000.0, value=18000.0, step=1000.0, format="%.0f")
         max_travel_val = 0.08
+
+        custom_valid, custom_errors = validate_custom_parameters(
+            ms=ms_val,
+            mu=mu_val,
+            ks=ks_val,
+            cs=cs_val,
+            kt=kt_val,
+            max_travel=max_travel_val,
+            f_max=fmax_val,
+            slew_rate=slew_val
+        )
+
+        if not custom_valid:
+            for err in custom_errors:
+                st.error(f"❌ {err}")
+            st.warning("Please correct the invalid parameter values above before launching simulation.")
+        else:
+            tot_m = ms_val + mu_val
+            f_bnc = np.sqrt(ks_val / ms_val) / (2.0 * np.pi)
+            f_hop = np.sqrt((ks_val + kt_val) / mu_val) / (2.0 * np.pi)
+            st.success(f"✓ Valid physical parameters: Total Mass = {tot_m:.1f} kg | Bounce Natural Freq = {f_bnc:.2f} Hz | Wheel-Hop Freq = {f_hop:.2f} Hz")
 
 
 # ==============================================================================
@@ -187,7 +245,9 @@ if "last_simulation" not in st.session_state:
 # ==============================================================================
 # SIMULATION WORKFLOW EXECUTION
 # ==============================================================================
-if run_simulation_btn:
+if run_simulation_btn and not custom_valid:
+    st.error("❌ Cannot launch simulation: One or more vehicle parameters violate physical constraints. Please review and resolve the errors above.")
+elif run_simulation_btn:
     progress_box = st.status("Running Smart Suspension Simulation Pipeline...", expanded=True)
 
     try:
@@ -213,16 +273,28 @@ if run_simulation_btn:
 
         # STEP 3: Generate Road Profile ONCE (Mandatory exact parity)
         road_type_key = ROAD_OPTIONS[road_choice]
-        progress_box.write(f"✓ Generating {road_choice} profile at {speed_kmh:.0f} km/h (Seed: 42)...")
-        sc = create_scenario(
-            scenario_id=101,
-            road_type=road_type_key,
-            speed_kmh=speed_kmh,
-            split="test",
-            duration_s=duration_s,
-            seed=42
-        )
-        road_fn = sc.road_profile.get_time_callable(sc.speed_mps)
+        if road_type_key == "measured_highway":
+            progress_box.write(f"✓ Loading real measured profilometer data: LiRA Highway M13 at {speed_kmh:.0f} km/h...")
+            road_obj = load_measured_road_profile("lira_highway_m13")
+            road_fn = road_obj.get_time_callable(speed_kmh / 3.6)
+            gt_class = "smooth"
+        elif road_type_key == "measured_urban":
+            progress_box.write(f"✓ Loading real measured profilometer data: LiRA Urban CPH1 at {speed_kmh:.0f} km/h...")
+            road_obj = load_measured_road_profile("lira_urban_cph1")
+            road_fn = road_obj.get_time_callable(speed_kmh / 3.6)
+            gt_class = "rough"
+        else:
+            progress_box.write(f"✓ Generating {road_choice} profile at {speed_kmh:.0f} km/h (Seed: 42)...")
+            sc = create_scenario(
+                scenario_id=101,
+                road_type=road_type_key,
+                speed_kmh=speed_kmh,
+                split="test",
+                duration_s=duration_s,
+                seed=42
+            )
+            road_fn = sc.road_profile.get_time_callable(sc.speed_mps)
+            gt_class = road_type_key
 
         # Build benchmark suite
         suite = SuspensionBenchmarkSuite(
@@ -237,7 +309,7 @@ if run_simulation_btn:
         res_passive = suite.simulate_system(
             system_type="passive",
             road_func=road_fn,
-            ground_truth_class=road_type_key,
+            ground_truth_class=gt_class,
             duration_s=duration_s,
             dt=0.002
         )
@@ -272,25 +344,38 @@ if run_simulation_btn:
         ai_conf = float(probas[pred_idx])
         ai_detected_road = inv_map.get(pred_idx, "bumpy")
 
-        # STEP 7: Controller Selection & PSO-Tuned Gains
+        # STEP 7: Controller Selection & Setup
         controller_tag = DEFAULT_ROAD_TO_CONTROLLER_MAP.get(ai_detected_road, "balanced")
         controller_display = controller_tag.replace("_", " ").title() + " LQR"
-        progress_box.write(f"✓ AI detected road: '{ai_detected_road.capitalize()}' ({ai_conf*100.0:.1f}% confidence) → Selecting {controller_display}...")
+        
+        if "MPC" in ctrl_choice:
+            active_sys_type = "mpc"
+            active_display_name = "Constrained MPC"
+            progress_box.write(f"✓ Target Controller: Constrained MPC (Receding Horizon Np=12, QP Optimization)...")
+        elif "Adaptive" in ctrl_choice:
+            active_sys_type = "proposed_ai_pso"
+            active_display_name = f"AI Adaptive LQR ({controller_display})"
+            progress_box.write(f"✓ AI detected road: '{ai_detected_road.capitalize()}' ({ai_conf*100.0:.1f}% confidence) → Selecting {controller_display}...")
+        else:
+            active_sys_type = "fixed_nominal_lqr"
+            active_display_name = "Fixed Nominal LQR"
+            progress_box.write(f"✓ Target Controller: Fixed Nominal LQR (Balanced baseline)...")
 
-        # STEP 8: AI Adaptive Suspension Simulation on EXACT SAME road realization
-        progress_box.write("✓ Simulating AI Adaptive Suspension with PSO-tuned gains and actuator constraints...")
+        # STEP 8: Active Suspension Simulation on EXACT SAME road realization
+        progress_box.write(f"✓ Simulating {active_display_name} with actuator constraints...")
         res_adaptive = suite.simulate_system(
-            system_type="proposed_ai_pso",
+            system_type=active_sys_type,
             road_func=road_fn,
-            ground_truth_class=road_type_key,
+            ground_truth_class=gt_class,
             duration_s=duration_s,
             dt=0.002
         )
 
         # STEP 9: Compute Performance Metrics
         progress_box.write("✓ Computing standardized engineering performance metrics...")
-        metrics_passive = compute_simulation_metrics(res_passive, ground_truth_class=road_type_key)
-        metrics_adaptive = compute_simulation_metrics(res_adaptive, ground_truth_class=road_type_key)
+        metrics_passive = compute_simulation_metrics(res_passive, ground_truth_class=gt_class)
+        metrics_adaptive = compute_simulation_metrics(res_adaptive, ground_truth_class=gt_class)
+
 
         progress_box.update(label="✓ Simulation Completed Successfully!", state="complete", expanded=False)
 
@@ -305,6 +390,7 @@ if run_simulation_btn:
             "ai_detected_road": ai_detected_road,
             "ai_conf": ai_conf,
             "controller_display": controller_display,
+            "active_display_name": active_display_name,
             "res_passive": res_passive,
             "res_adaptive": res_adaptive,
             "metrics_passive": metrics_passive,
@@ -334,7 +420,7 @@ if sim is not None:
     # --------------------------------------------------------------------------
     # 1. AI DECISION RESULT
     # --------------------------------------------------------------------------
-    st.subheader("🧠 AI DECISION")
+    st.subheader("🧠 CONTROLLER DECISION & CLASSIFICATION")
     d1, d2, d3, d4 = st.columns(4)
     with d1:
         st.metric("Test Scenario", sim["road_choice"])
@@ -343,7 +429,8 @@ if sim is not None:
     with d3:
         st.metric("Detection Confidence", f"{sim['ai_conf'] * 100.0:.1f}%")
     with d4:
-        st.metric("Controller Selected", sim["controller_display"])
+        st.metric("Active Controller", sim.get("active_display_name", sim["controller_display"]))
+
 
     st.markdown("---")
 
@@ -491,6 +578,7 @@ with st.expander("⚙️ ADVANCED TECHNICAL ANALYSIS (Model Inspection, Optimiza
         "🎛️ LQR Controller Design",
         "🐝 PSO Optimization",
         "📊 6-System Benchmark Suite",
+        "🛣️ Real Measured Roads & MPC",
         "🔬 Parameter Sensitivity",
         "💥 Unilateral Tyre Contact",
         "⚠️ Assumptions & Limitations"
@@ -501,7 +589,7 @@ with st.expander("⚙️ ADVANCED TECHNICAL ANALYSIS (Model Inspection, Optimiza
     # --------------------------------------------------------------------------
     with adv_tabs[0]:
         st.subheader("Quarter-Car 2-DOF Analytical State-Space Formulation")
-        v_ref = VehicleParameters()
+        v_ref = sim.get("v_params", VehicleParameters()) if sim is not None else VehicleParameters()
         qc_ref = QuarterCarModel(v_ref)
 
         c1, c2 = st.columns(2)
@@ -616,9 +704,91 @@ with st.expander("⚙️ ADVANCED TECHNICAL ANALYSIS (Model Inspection, Optimiza
             st.info("Benchmark summary CSV not yet generated.")
 
     # --------------------------------------------------------------------------
-    # TAB 5: PARAMETER SENSITIVITY
+    # TAB 5: REAL MEASURED ROADS & MPC (BENCHMARK)
     # --------------------------------------------------------------------------
     with adv_tabs[4]:
+        st.subheader("Benchmark: Real Measured Road Profiles (LiRA-CD) & Constrained MPC")
+        st.markdown("""
+        Evaluates the primary 3-way comparative study:
+        1. **Passive Suspension** (Reference Baseline)
+        2. **Fixed Nominal LQR** (Retained Benchmark)
+        3. **Constrained Discrete-Time MPC** (Primary Proposed Comparison)
+        
+        Using real physical profilometer data from the Danish Road Directorate P79 Laser Survey (LiRA-CD dataset).
+        """)
+
+        real_csv = PROJECT_ROOT / "results/tables/real_road_benchmark_summary.csv"
+
+        if st.button("🚀 Re-Run Real Road Benchmark (Passive vs LQR vs MPC)", key="real_road_btn"):
+            with st.spinner("Executing real-road simulations on LiRA-CD Highway M13 and Urban CPH1..."):
+                run_real_road_study()
+                st.success("Real-road comparative benchmark completed!")
+
+        if real_csv.exists():
+            df_real = pd.read_csv(real_csv)
+            st.markdown("### Measured Road Benchmark Summary")
+            st.dataframe(
+                df_real[[
+                    "trace_key", "speed_kmh", "system_name",
+                    "rms_body_accel_mps2", "peak_body_accel_mps2",
+                    "rms_susp_travel_m", "rms_dynamic_tyre_load_n",
+                    "electrical_energy_j"
+                ]].style.format({
+                    "rms_body_accel_mps2": "{:.4f}",
+                    "peak_body_accel_mps2": "{:.4f}",
+                    "rms_susp_travel_m": "{:.4f}",
+                    "rms_dynamic_tyre_load_n": "{:.1f}",
+                    "electrical_energy_j": "{:.1f}"
+                }),
+                use_container_width=True
+            )
+
+            # Show pre-generated publication figures
+            fig_bar_file = PROJECT_ROOT / "results/figures/real_road_comparison_bar_chart.png"
+            fig_ts_m13 = PROJECT_ROOT / "results/figures/real_road_time_series_lira_highway_m13.png"
+            fig_ts_cph = PROJECT_ROOT / "results/figures/real_road_time_series_lira_urban_cph1.png"
+
+            if fig_bar_file.exists():
+                st.image(str(fig_bar_file), caption="Comparative Metrics Across Real Measured Roads", use_container_width=True)
+
+            col_ts1, col_ts2 = st.columns(2)
+            with col_ts1:
+                if fig_ts_m13.exists():
+                    st.image(str(fig_ts_m13), caption="Time Series: LiRA Highway M13", use_container_width=True)
+            with col_ts2:
+                if fig_ts_cph.exists():
+                    st.image(str(fig_ts_cph), caption="Time Series: LiRA Urban CPH1", use_container_width=True)
+        else:
+            st.info("Real road benchmark CSV not yet generated. Click button above to run.")
+
+        st.markdown("---")
+        st.markdown("### Reference Paper Replication Study (Deshpande et al., 2014)")
+        st.markdown("Compares **Passive vs Fixed LQR vs Constrained MPC vs DOSMC** on academic benchmark profiles and real measured roads.")
+
+        ref_csv = PROJECT_ROOT / "results/tables/reference_study_comparison.csv"
+        ref_fig = PROJECT_ROOT / "results/figures/reference_paper_benchmark.png"
+
+        if ref_csv.exists():
+            df_ref = pd.read_csv(ref_csv)
+            st.dataframe(
+                df_ref[[
+                    "road_name", "controller_name", "rms_body_accel_mps2",
+                    "accel_imprv_pct", "rms_dynamic_tyre_load_n", "electrical_energy_j"
+                ]].style.format({
+                    "rms_body_accel_mps2": "{:.4f}",
+                    "accel_imprv_pct": "{:+.1f}%",
+                    "rms_dynamic_tyre_load_n": "{:.1f}",
+                    "electrical_energy_j": "{:.1f}"
+                }),
+                use_container_width=True
+            )
+        if ref_fig.exists():
+            st.image(str(ref_fig), caption="Reference Paper Benchmark Response Comparison", use_container_width=True)
+
+    # --------------------------------------------------------------------------
+    # TAB 6: PARAMETER SENSITIVITY
+    # --------------------------------------------------------------------------
+    with adv_tabs[5]:
         st.subheader("Vehicle Parameter Robustness Study")
         st.markdown("Evaluates controller stability under payload mass variations, spring softening, and damper wear.")
 
@@ -640,9 +810,9 @@ with st.expander("⚙️ ADVANCED TECHNICAL ANALYSIS (Model Inspection, Optimiza
             st.info("Sensitivity data not found.")
 
     # --------------------------------------------------------------------------
-    # TAB 6: UNILATERAL TYRE CONTACT
+    # TAB 7: UNILATERAL TYRE CONTACT
     # --------------------------------------------------------------------------
-    with adv_tabs[5]:
+    with adv_tabs[6]:
         st.subheader("Unilateral Tyre Contact Dynamics (Tyre Lift-off)")
         st.markdown("Examines landing impact shock and loss-of-contact dynamics ($F_{tyre} \ge 0$).")
 
@@ -665,9 +835,9 @@ with st.expander("⚙️ ADVANCED TECHNICAL ANALYSIS (Model Inspection, Optimiza
             st.info("Unilateral contact metrics not found.")
 
     # --------------------------------------------------------------------------
-    # TAB 7: ASSUMPTIONS & LIMITATIONS
+    # TAB 8: ASSUMPTIONS & LIMITATIONS
     # --------------------------------------------------------------------------
-    with adv_tabs[6]:
+    with adv_tabs[7]:
         st.subheader("Academic Scope, Physical Assumptions, and Engineering Limitations")
         st.markdown("""
         1. **Quarter-Car Kinematic Model**: Represents single-corner heave dynamics. Pitch, roll, and load transfers during braking/cornering are omitted.
@@ -676,3 +846,4 @@ with st.expander("⚙️ ADVANCED TECHNICAL ANALYSIS (Model Inspection, Optimiza
         4. **Tyre Road Contact**: Dynamic tyre deflection is modeled via radial stiffness $k_t$.
         5. **Prototype Disclaimer**: This software is an academic engineering simulation tool. It does not establish real-vehicle safety certification or automotive roadworthiness.
         """)
+

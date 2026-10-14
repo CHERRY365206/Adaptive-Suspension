@@ -1,0 +1,42 @@
+{
+  "dataset_name": "Live Road Assessment Custom Dataset (LiRA-CD) - Reference P79 Profilometer",
+  "citation": "Skar et al., 'LiRA-CD: An open-source dataset for road condition modelling and research', Data in Brief, 2023.",
+  "doi": "10.11583/DTU.c.6659909",
+  "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+  "survey_instrument": "Danish Road Directorate (DRD) P79 Profilometer van (25-point longitudinal/transverse laser beam)",
+  "measurement_type": "Physical laser-measured longitudinal road elevation",
+  "raw_units": {
+    "distance": "meters",
+    "elevation": "millimeters"
+  },
+  "processed_units": {
+    "distance": "meters",
+    "elevation": "meters"
+  },
+  "traces": {
+    "lira_highway_m13": {
+      "name": "Highway M13 (P79 Profilometer)",
+      "file": "lira_highway_m13.csv",
+      "route_type": "highway",
+      "total_points": 3765,
+      "total_length_m": 379.0713,
+      "mean_spatial_step_m": 0.10070969713071201,
+      "elevation_std_mm": 6.78349959515708,
+      "elevation_min_mm": -18.497,
+      "elevation_max_mm": 17.238,
+      "description": "Danish Motorway M13 surveyed by DRD P79 Profilometer in right wheelpath."
+    },
+    "lira_urban_cph1": {
+      "name": "Urban CPH1 Ring Road (P79 Profilometer)",
+      "file": "lira_urban_cph1.csv",
+      "route_type": "urban",
+      "total_points": 3750,
+      "total_length_m": 377.5598,
+      "mean_spatial_step_m": 0.10070946919178447,
+      "elevation_std_mm": 14.643092223442634,
+      "elevation_min_mm": -42.808,
+      "elevation_max_mm": 88.622,
+      "description": "Copenhagen Urban Ring Road O2 (CPH1) surveyed by DRD P79 Profilometer."
+    }
+  }
+}

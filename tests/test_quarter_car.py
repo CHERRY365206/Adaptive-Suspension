@@ -10,11 +10,13 @@ def test_vehicle_parameters_validation():
     """Verify physical parameter constraints and error handling."""
     # Valid default construction
     params = VehicleParameters()
-    assert params.ms == 450.0
-    assert params.mu == 45.0
-    assert params.ks == 28000.0
-    assert params.total_mass == 495.0
-    assert params.static_tyre_load == pytest.approx(495.0 * 9.81, rel=1e-5)
+    assert params.ms == 395.3
+    assert params.mu == 48.3
+    assert params.ks == 30010.0
+    assert params.cs == 1450.0
+    assert params.kt == 340000.0
+    assert params.total_mass == pytest.approx(443.6, rel=1e-5)
+    assert params.static_tyre_load == pytest.approx(443.6 * 9.81, rel=1e-5)
 
     # Invalid negative sprung mass
     with pytest.raises(ValueError, match="Sprung mass ms must be strictly positive"):
@@ -76,13 +78,13 @@ def test_actuator_force_sign_convention():
     u_pos = 1000.0  # +1000 N
 
     outputs = model.calculate_outputs(zero_state, u_applied=u_pos, zr=0.0)
-    # ms * zs_ddot = +u => zs_ddot = +1000 / 450 > 0
+    # ms * zs_ddot = +u => zs_ddot = +1000 / ms > 0
     assert outputs["zs_ddot"] > 0.0
-    assert outputs["zs_ddot"] == pytest.approx(1000.0 / 450.0, rel=1e-5)
+    assert outputs["zs_ddot"] == pytest.approx(1000.0 / model.params.ms, rel=1e-5)
 
-    # mu * zu_ddot = -u => zu_ddot = -1000 / 45 < 0
+    # mu * zu_ddot = -u => zu_ddot = -1000 / mu < 0
     assert outputs["zu_ddot"] < 0.0
-    assert outputs["zu_ddot"] == pytest.approx(-1000.0 / 45.0, rel=1e-5)
+    assert outputs["zu_ddot"] == pytest.approx(-1000.0 / model.params.mu, rel=1e-5)
 
 
 def test_passive_decay_stability():

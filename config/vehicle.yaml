@@ -1,14 +1,19 @@
-# Vehicle Dynamics Assumed Parameters (Quarter-Car Model for Passenger EV)
-# NOTE: These are academic simulation assumptions, not manufacturer specifications.
-sprung_mass_kg: 450.0          # 1/4 of vehicle chassis + battery pack mass
-unsprung_mass_kg: 45.0         # Wheel, hub motor / brake assembly mass
-suspension_stiffness_n_per_m: 28000.0   # Main suspension spring stiffness
-suspension_damping_ns_per_m: 1500.0    # Passive suspension damping coefficient
-tyre_stiffness_n_per_m: 190000.0       # Radial tyre stiffness
+# Vehicle Dynamics Parameters (Quarter-Car Model)
+# Research Benchmark Source:
+# "Optimal Design of Linear Quadratic Regulator for Vehicle Suspension System Based on Bacterial Memetic Algorithm"
+# Bala Abdullahi Magaji, et al., Mathematics 2025, 13(15), 2418. DOI: https://doi.org/10.3390/math13152418
+# NOTE: This is a peer-reviewed quarter-car benchmark, not a manufacturer OEM specification.
+
+sprung_mass_kg: 395.3          # Sprung quarter-car mass ms [kg]
+unsprung_mass_kg: 48.3         # Unsprung quarter-car mass mu [kg]
+suspension_stiffness_n_per_m: 30010.0   # Suspension spring stiffness ks [N/m]
+suspension_damping_ns_per_m: 1450.0    # Passive suspension damping coefficient cs [N*s/m]
+tyre_stiffness_n_per_m: 340000.0       # Radial tyre stiffness kt [N/m]
 
 # Geometry and Physical Constraints
-max_suspension_travel_m: 0.08  # Maximum allowable bump/rebound suspension travel (+/- 80 mm)
-gravity_m_per_s2: 9.81         # Gravitational acceleration
+max_suspension_travel_m: 0.08  # Maximum allowable suspension rattle-space travel [m]
+gravity_m_per_s2: 9.81         # Gravitational acceleration g [m/s^2]
 
 # Baseline nominal static tyre load:
-# F_static = (ms + mu) * g = 495 * 9.81 = 4855.95 N
+# F_static = (ms + mu) * g = (395.3 + 48.3) * 9.81 = 443.6 * 9.81 = 4351.716 N
+

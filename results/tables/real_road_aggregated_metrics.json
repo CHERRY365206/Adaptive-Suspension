@@ -1,0 +1,106 @@
+{
+  "lira_highway_m13_90kmh": {
+    "trace": "lira_highway_m13",
+    "speed_kmh": 90.0,
+    "controllers": {
+      "fixed_nominal_lqr": {
+        "rms_body_accel_mps2": 0.1420158237431278,
+        "accel_improvement_pct": 62.152391710177326,
+        "rms_susp_travel_m": 0.008296854831336275,
+        "travel_improvement_pct": -104.53061311512151,
+        "rms_dynamic_tyre_load_n": 386.43638048772414,
+        "tyre_load_improvement_pct": -71.29514465754275,
+        "electrical_energy_j": 239.2143094906097,
+        "contact_loss_pct": 0.0
+      },
+      "mpc": {
+        "rms_body_accel_mps2": 0.34224621224281876,
+        "accel_improvement_pct": 8.790441528044648,
+        "rms_susp_travel_m": 0.020367306982442886,
+        "travel_improvement_pct": -402.08637722446605,
+        "rms_dynamic_tyre_load_n": 276.1528253951783,
+        "tyre_load_improvement_pct": -22.409898659008114,
+        "electrical_energy_j": 258.65435031215736,
+        "contact_loss_pct": 0.0
+      }
+    }
+  },
+  "lira_highway_m13_110kmh": {
+    "trace": "lira_highway_m13",
+    "speed_kmh": 110.0,
+    "controllers": {
+      "fixed_nominal_lqr": {
+        "rms_body_accel_mps2": 0.14461060838466067,
+        "accel_improvement_pct": 64.61223544080384,
+        "rms_susp_travel_m": 0.00886184079046177,
+        "travel_improvement_pct": -101.63220844150351,
+        "rms_dynamic_tyre_load_n": 453.94452891604516,
+        "tyre_load_improvement_pct": -86.94865003414569,
+        "electrical_energy_j": 276.75770401970306,
+        "contact_loss_pct": 0.0
+      },
+      "mpc": {
+        "rms_body_accel_mps2": 0.3883957343689954,
+        "accel_improvement_pct": 4.9554043290781244,
+        "rms_susp_travel_m": 0.019607639542045925,
+        "travel_improvement_pct": -346.1298455556728,
+        "rms_dynamic_tyre_load_n": 310.4547814819956,
+        "tyre_load_improvement_pct": -27.85505408181452,
+        "electrical_energy_j": 251.64500234595585,
+        "contact_loss_pct": 0.0
+      }
+    }
+  },
+  "lira_urban_cph1_45kmh": {
+    "trace": "lira_urban_cph1",
+    "speed_kmh": 45.0,
+    "controllers": {
+      "fixed_nominal_lqr": {
+        "rms_body_accel_mps2": 1.6011802311790795,
+        "accel_improvement_pct": 13.344370520299067,
+        "rms_susp_travel_m": 0.036270277790744404,
+        "travel_improvement_pct": -139.58575697903345,
+        "rms_dynamic_tyre_load_n": 1699.5480539895727,
+        "tyre_load_improvement_pct": -0.9170549493277833,
+        "electrical_energy_j": 415.6226243861554,
+        "contact_loss_pct": 0.7997334221926025
+      },
+      "mpc": {
+        "rms_body_accel_mps2": 1.797280120734741,
+        "accel_improvement_pct": 2.7314744581035955,
+        "rms_susp_travel_m": 0.04758252672118322,
+        "travel_improvement_pct": -214.30957736912868,
+        "rms_dynamic_tyre_load_n": 1705.6379408619184,
+        "tyre_load_improvement_pct": -1.2786648765605149,
+        "electrical_energy_j": 519.0114489836058,
+        "contact_loss_pct": 0.733088970343219
+      }
+    }
+  },
+  "lira_urban_cph1_60kmh": {
+    "trace": "lira_urban_cph1",
+    "speed_kmh": 60.0,
+    "controllers": {
+      "fixed_nominal_lqr": {
+        "rms_body_accel_mps2": 1.6196392501434613,
+        "accel_improvement_pct": 15.416153022288304,
+        "rms_susp_travel_m": 0.032955521906418046,
+        "travel_improvement_pct": -102.09627533722201,
+        "rms_dynamic_tyre_load_n": 1705.0872329979975,
+        "tyre_load_improvement_pct": -0.5955408039597669,
+        "electrical_energy_j": 418.8377100486456,
+        "contact_loss_pct": 0.7664111962679107
+      },
+      "mpc": {
+        "rms_body_accel_mps2": 1.848264437890676,
+        "accel_improvement_pct": 3.4764584921957926,
+        "rms_susp_travel_m": 0.04493318174447191,
+        "travel_improvement_pct": -175.54801575877192,
+        "rms_dynamic_tyre_load_n": 1716.2881191544693,
+        "tyre_load_improvement_pct": -1.2563628302984,
+        "electrical_energy_j": 562.5238951375446,
+        "contact_loss_pct": 0.733088970343219
+      }
+    }
+  }
+}
